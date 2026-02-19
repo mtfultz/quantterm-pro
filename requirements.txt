@@ -1,6 +1,6 @@
 # Core data & computation
-pandas==2.1.4
-numpy==1.26.4
+pandas==2.2.3
+numpy>=2.0,<2.3
 scipy>=1.11.0
 requests>=2.31.0
 
@@ -12,7 +12,7 @@ alpaca-trade-api>=3.0.0
 # Technical analysis & backtesting
 pandas-ta-classic>=0.3.59
 backtesting>=0.3.3
-bokeh>=2.4.0,<3.0.0
+bokeh<3.0.0,>=2.4.0
 vectorbt>=0.24.0
 numba>=0.56.0
 
