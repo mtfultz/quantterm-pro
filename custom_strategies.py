@@ -5,6 +5,7 @@ Add your custom strategy classes here - they will automatically appear in the dr
 """
 
 import pandas as pd
+import numpy as np
 import pandas_ta_classic as ta
 import logging
 from typing import Optional, Dict
@@ -48,6 +49,26 @@ class MacdOnlyStrategy:
                 "optimize_step": 5,
                 "description": "Primary optimization parameter"
             }
+        }
+
+    @staticmethod
+    def generate_vectorized_signals(close, high, low, volume, param_ranges):
+        T = len(close)
+        threshold_range = param_ranges.get('MACD', np.array([30]))
+        N = len(threshold_range)
+        macd_data = ta.macd(close)
+        macd_line = macd_data.iloc[:, 0].values[:, None]
+        macd_sig = macd_data.iloc[:, 1].values[:, None]
+        entries = np.tile(macd_line < macd_sig, (1, N))
+        entries = np.asarray(entries, dtype=bool)
+        exits = ~entries
+        zeros = np.zeros_like(entries)
+        return {
+            'long_entries': entries,
+            'long_exits': exits,
+            'short_entries': zeros,
+            'short_exits': zeros,
+            'param_columns': {'macd': threshold_range},
         }
 
     def __init__(self, **kwargs):

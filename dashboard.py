@@ -534,6 +534,11 @@ def generate_multi_asset_signals(
     if safe_haven_action in ('TLT', 'GLD') and safe_haven_action in tickers:
         rotation_target = safe_haven_action
 
+    if not hasattr(strategy_class, 'generate_vectorized_signals'):
+        raise AttributeError(
+            f"'{strategy_class.__name__}' does not support backtesting (missing vectorized signals). Use a core strategy."
+        )
+
     for i, tkr in enumerate(tickers):
         try:
             close = close_df[tkr]
@@ -2723,6 +2728,9 @@ if selected_page == "Main Terminal":
                         volume = price_data.get('Volume')
 
                         # Generate signals (single-value arrays -> (T,1) matrices)
+                        if not hasattr(selected_strategy_class, 'generate_vectorized_signals'):
+                            st.error(f"'{selected_strategy_class.__name__}' does not support Quick Backtest (missing vectorized signals). Use a core strategy or run via Grid Search.")
+                            st.stop()
                         sig = selected_strategy_class.generate_vectorized_signals(
                             close, high, low, volume, signal_params
                         )
@@ -3188,6 +3196,9 @@ elif selected_page == "Grid Search":
                     st.warning(f"Macro data unavailable for Grid Search: {macro_err}. Running without regime filter.")
 
             # Generate signal matrices per ticker
+            if not hasattr(selected_strategy_class, 'generate_vectorized_signals'):
+                st.error(f"'{selected_strategy_class.__name__}' does not support Grid Search (missing vectorized signals). Use a core strategy.")
+                st.stop()
             signal_param_ranges = {k: strategy_param_ranges[k] for k in signal_param_names}
             signal_progress = st.progress(0, text="Generating signal matrices...")
             per_ticker_signals = {}
@@ -4582,6 +4593,49 @@ class {class_name}:
                 "optimize_step": 5,
                 "description": "Primary optimization parameter"
             }}
+        }}
+
+    @staticmethod
+    def generate_vectorized_signals(close, high, low, volume, param_ranges):
+        import numpy as np
+        T = len(close)
+        param_key = "{param_name if param_name else 'RSI_THRESHOLD'}"
+        threshold_range = param_ranges.get(param_key, np.array([{int(param_default)}]))
+        N = len(threshold_range)
+
+        if "{indicator1}" == "RSI":
+            rsi = ta.rsi(close, length=14)
+            ind_vals = rsi.values[:, None]
+            entries = ind_vals {'<' if operator1 in ('<', 'Crosses Below') else '>'} threshold_range
+        elif "{indicator1}" == "MACD":
+            macd_data = ta.macd(close)
+            macd_line = macd_data.iloc[:, 0].values[:, None]
+            macd_sig = macd_data.iloc[:, 1].values[:, None]
+            entries = np.tile(macd_line {'<' if operator1 in ('<', 'Crosses Below') else '>'} macd_sig, (1, N))
+        elif "{indicator1}" == "SMA_Cross":
+            sma20 = ta.sma(close, length=20).values[:, None]
+            sma50 = ta.sma(close, length=50).values[:, None]
+            entries = np.tile(sma20 {'<' if operator1 in ('<', 'Crosses Below') else '>'} sma50, (1, N))
+        elif "{indicator1}" == "EMA_Trend":
+            ema20 = ta.ema(close, length=20).values[:, None]
+            close_vals = close.values[:, None]
+            entries = np.tile(close_vals {'<' if operator1 in ('<', 'Crosses Below') else '>'} ema20, (1, N))
+        elif "{indicator1}" == "Volume_Spike":
+            vol_sma = ta.sma(volume, length=20)
+            vol_ratio = (volume / vol_sma).values[:, None]
+            entries = vol_ratio {'<' if operator1 in ('<', 'Crosses Below') else '>'} (threshold_range / 100.0)
+        else:
+            entries = np.zeros((T, N), dtype=bool)
+
+        entries = np.asarray(entries, dtype=bool)
+        exits = ~entries
+        zeros = np.zeros_like(entries)
+        return {{
+            'long_entries': entries,
+            'long_exits': exits,
+            'short_entries': zeros,
+            'short_exits': zeros,
+            'param_columns': {{'{param_label if param_label else "Threshold"}': threshold_range}},
         }}
 
     def __init__(self, **kwargs):
