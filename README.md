@@ -46,9 +46,18 @@ The result is an asymmetric advantage: the speed and rigour of systematic quant 
 
 ---
 
+
 ## 🖥️ System Previews
 
 <table align="center" style="border: none; background-color: transparent;">
+<tr>
+<td align="center" width="50%"><b>Grid Search & UMAP Robustness Manifold</b></td>
+<td align="center" width="50%"><b>Backtest with Optimal Parameters</b></td>
+</tr>
+<tr>
+<td align="center"><img src="https://github.com/user-attachments/assets/30bfcc59-44b9-4261-bc45-b482d22f7401" alt="Grid Search and UMAP Robustness Manifold" width="100%"/></td>
+<td align="center"><img src="https://github.com/user-attachments/assets/d5997695-74e6-4a17-aebf-3cae2e04763d" alt="Backtest with Optimal Parameters" width="100%"/></td>
+</tr>
 <tr>
 <td align="center" width="50%"><b>Portfolio Optimizer & Efficient Frontier</b></td>
 <td align="center" width="50%"><b>Live Terminal & AI Copilot</b></td>
@@ -65,6 +74,8 @@ The result is an asymmetric advantage: the speed and rigour of systematic quant 
 <td align="center"><img src="https://github.com/user-attachments/assets/5c75a3ad-099c-4d6f-8ad8-39aef850b9a5" alt="Walk-Forward" width="100%"/></td>
 <td align="center"><img src="https://github.com/user-attachments/assets/2d02e492-0fb6-44c3-bb2b-77e5f1b8da84" alt="Macro Dashboard" width="100%"/></td>
 </tr>
+<td align="center" width="100%"><b>MVO vs HRP Allocation Bake Off</b></td>
+<td align="center"><img src="https://github.com/user-attachments/assets/978d0ec1-0939-486e-a102-c9f415451c1e" alt="MVO vs HRP" width="100%"/></td>
 </table>
 
 ---
