@@ -74,7 +74,7 @@ The result is an asymmetric advantage: the speed and rigour of systematic quant 
 <td align="center"><img src="https://github.com/user-attachments/assets/5c75a3ad-099c-4d6f-8ad8-39aef850b9a5" alt="Walk-Forward" width="100%"/></td>
 <td align="center"><img src="https://github.com/user-attachments/assets/2d02e492-0fb6-44c3-bb2b-77e5f1b8da84" alt="Macro Dashboard" width="100%"/></td>
 </tr>
-<td align="center" width="100%"><b>MVO vs HRP Allocation Bake Off</b></td>
+<td align="center" width="50%"><b>MVO vs HRP Allocation Bake Off</b></td>
 <td align="center"><img src="https://github.com/user-attachments/assets/978d0ec1-0939-486e-a102-c9f415451c1e" alt="MVO vs HRP" width="100%"/></td>
 </table>
 
