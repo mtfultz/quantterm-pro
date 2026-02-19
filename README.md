@@ -48,16 +48,24 @@ The result is an asymmetric advantage: the speed and rigour of systematic quant 
 
 ## 🖥️ System Previews
 
-|  Portfolio Optimizer & Efficient Frontier   |  Live Terminal & AI Copilot   |
-| :-----------------------------------------: | :---------------------------: |
-| ![Portfolio Optimizer & Efficient Frontier] | <img width="2151" height="3701" alt="image" src="https://github.com/user-attachments/assets/0018a99e-d8e0-41a4-8551-91fcd68cc840" />
-| ![Live Terminal & AI Copilot] | <img width="2145" height="1963" alt="image" src="https://github.com/user-attachments/assets/c7eb8c1c-c9b9-4173-adc4-98bcb25d22f0" />
-
-
-|  Walk-Forward OOS Equity   |  Global Macro Dashboard   |
-| :------------------------: | :-----------------------: |
-| ![Walk-Forward OOS Equity] | <img width="1024" height="995" alt="image" src="https://github.com/user-attachments/assets/5c75a3ad-099c-4d6f-8ad8-39aef850b9a5" />
-| ![Global Macro Dashboard] | <img width="2149" height="2304" alt="image" src="https://github.com/user-attachments/assets/2d02e492-0fb6-44c3-bb2b-77e5f1b8da84" />|
+<table align="center" style="border: none; background-color: transparent;">
+<tr>
+<td align="center" width="50%"><b>Portfolio Optimizer & Efficient Frontier</b></td>
+<td align="center" width="50%"><b>Live Terminal & AI Copilot</b></td>
+</tr>
+<tr>
+<td align="center"><img src="https://github.com/user-attachments/assets/0018a99e-d8e0-41a4-8551-91fcd68cc840" alt="Portfolio Optimizer" width="100%"/></td>
+<td align="center"><img src="https://github.com/user-attachments/assets/c7eb8c1c-c9b9-4173-adc4-98bcb25d22f0" alt="Live Terminal" width="100%"/></td>
+</tr>
+<tr>
+<td align="center" width="50%"><b>Walk-Forward OOS Equity</b></td>
+<td align="center" width="50%"><b>Global Macro Dashboard</b></td>
+</tr>
+<tr>
+<td align="center"><img src="https://github.com/user-attachments/assets/5c75a3ad-099c-4d6f-8ad8-39aef850b9a5" alt="Walk-Forward" width="100%"/></td>
+<td align="center"><img src="https://github.com/user-attachments/assets/2d02e492-0fb6-44c3-bb2b-77e5f1b8da84" alt="Macro Dashboard" width="100%"/></td>
+</tr>
+</table>
 
 ---
 
