@@ -820,17 +820,19 @@ hr {
    SIDEBAR PROTECTION - Prevent card styles from leaking into sidebar
    ============================================================================ */
 
-/* CRITICAL: Sidebar container must allow overflow for dropdowns */
+/* Sidebar must scroll vertically but not clip dropdowns horizontally */
 section[data-testid="stSidebar"] {
     overflow: visible !important;
 }
 
 section[data-testid="stSidebar"] > div {
-    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: auto !important;
 }
 
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: auto !important;
     padding-bottom: 100px !important; /* Extra space for dropdown expansion */
 }
 
