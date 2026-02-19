@@ -1,0 +1,1007 @@
+/* ============================================================================
+   QUANTTERM PRO - MODERN FINTECH PROFESSIONAL THEME
+   Inspired by Linear, Robinhood, and modern Bloomberg Terminal
+   ============================================================================ */
+
+/* Fonts are loaded via <link> tags in dashboard.py for better reliability */
+
+/* ============================================================================
+   CSS CUSTOM PROPERTIES - DESIGN TOKENS
+   ============================================================================ */
+:root {
+    /* Background Colors - Rich Charcoal Palette */
+    --bg-primary: #0E1117;
+    --bg-secondary: #161B22;
+    --bg-card: #1C2128;
+    --bg-card-hover: #21262D;
+    --bg-elevated: #262C36;
+
+    /* Border Colors */
+    --border-default: #30363D;
+    --border-subtle: #21262D;
+    --border-focus: #388BFD;
+
+    /* Text Colors - Proper Hierarchy */
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --text-tertiary: #6E7681;
+    --text-muted: #484F58;
+
+    /* Accent Colors - Refined Electric Blue */
+    --accent-primary: #388BFD;
+    --accent-primary-hover: #58A6FF;
+    --accent-gradient: linear-gradient(135deg, #388BFD 0%, #1F6FEB 100%);
+
+    /* Semantic Colors - Muted, Professional */
+    --color-success: #3FB950;
+    --color-success-subtle: rgba(63, 185, 80, 0.15);
+    --color-danger: #F85149;
+    --color-danger-subtle: rgba(248, 81, 73, 0.15);
+    --color-warning: #D29922;
+    --color-warning-subtle: rgba(210, 153, 34, 0.15);
+    --color-info: #388BFD;
+    --color-info-subtle: rgba(56, 139, 253, 0.15);
+
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+    /* Spacing */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    /* Shadows - Subtle Depth */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================================
+   RESET STREAMLIT DEFAULTS
+   ============================================================================ */
+
+/* Hide Streamlit branding */
+#MainMenu, footer, .stDeployButton {
+    visibility: hidden;
+    display: none;
+}
+
+/* Style header - keep functional but minimal */
+header[data-testid="stHeader"] {
+    background-color: var(--bg-primary) !important;
+    border-bottom: none !important;
+}
+
+/* Fix broken Material Symbols icon - hide text and use CSS icon */
+[data-testid="stIconMaterial"] {
+    font-size: 0 !important;
+    width: 24px !important;
+    height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+[data-testid="stIconMaterial"]::before {
+    content: '«';
+    font-family: 'Inter', -apple-system, sans-serif !important;
+    font-size: 20px !important;
+    font-weight: 300 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* When sidebar is collapsed, show right arrow */
+[data-testid="stSidebar"][aria-expanded="false"] ~ * [data-testid="stIconMaterial"]::before,
+[aria-expanded="false"] [data-testid="stIconMaterial"]::before {
+    content: '»';
+}
+
+/* Style the collapse button container */
+[data-testid="stSidebarCollapseButton"] button {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: 6px !important;
+    padding: 4px 8px !important;
+    transition: all 0.15s ease !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button:hover {
+    background: var(--bg-card-hover) !important;
+    border-color: var(--accent-primary) !important;
+}
+
+/* ============================================================================
+   GLOBAL STYLES - MODERN FINTECH FOUNDATION
+   ============================================================================ */
+
+.stApp {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-sans) !important;
+}
+
+/* Remove default Streamlit backgrounds - ONLY in main content area */
+section[data-testid="stMain"] .stMarkdown,
+section[data-testid="stMain"] div[data-testid="stVerticalBlock"] {
+    background-color: transparent;
+}
+
+/* Sidebar - Clean Professional Look */
+section[data-testid="stSidebar"] {
+    background-color: var(--bg-secondary) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    visibility: visible !important;
+    display: block !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    padding-top: 1rem;
+}
+
+/* Ensure sidebar content is visible */
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    visibility: visible !important;
+}
+
+/* Sidebar navigation area */
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+    visibility: visible !important;
+}
+
+/* ============================================================================
+   TYPOGRAPHY - PROPER HIERARCHY
+   ============================================================================ */
+
+/* Headings - Sans-serif, Clean, No Glow */
+h1 {
+    font-family: var(--font-sans) !important;
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    letter-spacing: -0.02em !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+    margin-bottom: 0.5rem !important;
+}
+
+h2 {
+    font-family: var(--font-sans) !important;
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    letter-spacing: -0.01em !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+}
+
+h3 {
+    font-family: var(--font-sans) !important;
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+}
+
+h4, h5, h6 {
+    font-family: var(--font-sans) !important;
+    font-weight: 600 !important;
+    color: var(--text-secondary) !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+}
+
+/* Body Text */
+p, span, label, .stMarkdown {
+    font-family: var(--font-sans) !important;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Captions - Muted Secondary Text */
+.stCaption, small {
+    font-family: var(--font-sans) !important;
+    font-size: 0.8125rem !important;
+    color: var(--text-tertiary) !important;
+}
+
+/* ============================================================================
+   CUSTOM CARD COMPONENTS
+   ============================================================================ */
+
+/* Primary Card Container */
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    border-color: var(--border-focus);
+    box-shadow: var(--shadow-md);
+}
+
+/* Card Header */
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-title {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+/* Section Card - For grouped content */
+.section-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.section-title {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ============================================================================
+   METRIC / KPI COMPONENTS - Professional Fintech Style
+   ============================================================================ */
+
+/* Custom Metric Card */
+.metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+    box-shadow: none;
+    margin: 0;
+}
+
+.metric-card:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-card-hover);
+    transform: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.metric-label {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.metric-value {
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+}
+
+.metric-delta {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.metric-delta.positive {
+    color: var(--color-success);
+}
+
+.metric-delta.negative {
+    color: var(--color-danger);
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.online {
+    background-color: var(--color-success-subtle);
+    color: var(--color-success);
+}
+
+.status-badge.offline {
+    background-color: var(--color-danger-subtle);
+    color: var(--color-danger);
+}
+
+.status-badge.warning {
+    background-color: var(--color-warning-subtle);
+    color: var(--color-warning);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+    box-shadow: none;
+    margin-right: 0;
+}
+
+/* Override Streamlit's default metric styling */
+div[data-testid="stMetricValue"] {
+    font-family: var(--font-mono) !important;
+    font-size: 1.75rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-family: var(--font-sans) !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    color: var(--text-tertiary) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+
+div[data-testid="stMetricDelta"] {
+    font-family: var(--font-sans) !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+}
+
+/* Positive/Negative Delta Colors */
+div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Up"] {
+    fill: var(--color-success) !important;
+}
+
+div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] {
+    fill: var(--color-danger) !important;
+}
+
+/* ============================================================================
+   BUTTONS - Clean, Professional
+   ============================================================================ */
+
+/* Primary Button */
+.stButton > button[kind="primary"],
+.stButton > button {
+    background: var(--accent-gradient) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: var(--radius-md) !important;
+    font-family: var(--font-sans) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1.25rem !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+    transition: all 0.15s ease !important;
+}
+
+/* Ensure ALL button text is white on blue backgrounds */
+.stButton > button p,
+.stButton > button span,
+.stButton > button div,
+.stButton > button * {
+    color: #FFFFFF !important;
+}
+
+.stButton > button[kind="primary"]:hover,
+.stButton > button:hover {
+    background: linear-gradient(135deg, #58A6FF 0%, #388BFD 100%) !important;
+    box-shadow: var(--shadow-md) !important;
+    transform: translateY(-1px) !important;
+    color: #FFFFFF !important;
+}
+
+.stButton > button:hover p,
+.stButton > button:hover span,
+.stButton > button:hover div,
+.stButton > button:hover * {
+    color: #FFFFFF !important;
+}
+
+.stButton > button:active {
+    transform: translateY(0) !important;
+}
+
+/* Secondary Button */
+.stButton > button[kind="secondary"] {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-default) !important;
+}
+
+.stButton > button[kind="secondary"]:hover {
+    background: var(--bg-elevated) !important;
+    border-color: var(--text-tertiary) !important;
+    box-shadow: none !important;
+}
+
+/* ============================================================================
+   INPUT FIELDS - Modern Form Controls
+   ============================================================================ */
+
+/* Text Input, Number Input */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input {
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 0.875rem !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.15) !important;
+    outline: none !important;
+}
+
+/* Input Labels */
+.stTextInput label,
+.stNumberInput label,
+.stSelectbox label,
+.stMultiSelect label {
+    font-family: var(--font-sans) !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* Selectbox */
+.stSelectbox > div > div {
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+.stSelectbox > div > div:focus-within {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.15) !important;
+}
+
+/* ============================================================================
+   SLIDERS - Clean Accent
+   ============================================================================ */
+
+.stSlider > div > div > div > div {
+    background-color: var(--accent-primary) !important;
+}
+
+.stSlider > div > div > div {
+    background-color: var(--border-default) !important;
+}
+
+.stSlider label {
+    font-family: var(--font-sans) !important;
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* Slider value display - use mono for numbers */
+.stSlider > div > div > div > div > div {
+    font-family: var(--font-mono) !important;
+}
+
+/* ============================================================================
+   DATAFRAME / TABLES - Professional Data Grid
+   ============================================================================ */
+
+.stDataFrame {
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: hidden !important;
+    background-color: var(--bg-card) !important;
+}
+
+/* Table Headers */
+.stDataFrame thead tr th {
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-secondary) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    border-bottom: 1px solid var(--border-default) !important;
+    padding: 0.75rem 1rem !important;
+}
+
+/* Table Cells - Monospace for data */
+.stDataFrame tbody tr td {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.8125rem !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0.625rem 1rem !important;
+}
+
+/* Zebra Striping */
+.stDataFrame tbody tr:nth-child(even) td {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Row Hover */
+.stDataFrame tbody tr:hover td {
+    background-color: var(--bg-elevated) !important;
+}
+
+/* ============================================================================
+   TABS - Modern Navigation
+   ============================================================================ */
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0;
+    background-color: transparent;
+    padding: 0;
+    border-bottom: 1px solid var(--border-default);
+    border-radius: 0;
+    border: none;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: auto;
+    background-color: transparent;
+    border-radius: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 0.875rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.75rem 1rem;
+    margin-right: 0.5rem;
+    transition: all 0.15s ease;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: transparent;
+}
+
+.stTabs [aria-selected="true"] {
+    background: transparent !important;
+    color: var(--accent-primary) !important;
+    border: none !important;
+    border-bottom: 2px solid var(--accent-primary) !important;
+    box-shadow: none !important;
+}
+
+/* ============================================================================
+   EXPANDER - Clean Accordion
+   ============================================================================ */
+
+.streamlit-expanderHeader {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-sans) !important;
+    font-weight: 500 !important;
+    padding: 0.875rem 1rem !important;
+}
+
+.streamlit-expanderHeader:hover {
+    border-color: var(--accent-primary) !important;
+    background-color: var(--bg-card-hover) !important;
+}
+
+/* ============================================================================
+   ALERTS - Subtle Semantic Colors
+   ============================================================================ */
+
+.stAlert {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid !important;
+    border-left-width: 4px !important;
+    font-family: var(--font-sans) !important;
+}
+
+div[data-baseweb="notification"] {
+    font-family: var(--font-sans) !important;
+}
+
+/* Success */
+div[data-baseweb="notification"][kind="success"] {
+    background-color: var(--color-success-subtle) !important;
+    border-color: var(--color-success) !important;
+}
+
+/* Warning */
+div[data-baseweb="notification"][kind="warning"] {
+    background-color: var(--color-warning-subtle) !important;
+    border-color: var(--color-warning) !important;
+}
+
+/* Error */
+div[data-baseweb="notification"][kind="error"] {
+    background-color: var(--color-danger-subtle) !important;
+    border-color: var(--color-danger) !important;
+}
+
+/* Info */
+div[data-baseweb="notification"][kind="info"] {
+    background-color: var(--color-info-subtle) !important;
+    border-color: var(--color-info) !important;
+}
+
+/* ============================================================================
+   CODE BLOCKS - Monospace for code only
+   ============================================================================ */
+
+code {
+    background-color: var(--bg-elevated) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--accent-primary) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.8125rem !important;
+    padding: 0.125rem 0.375rem !important;
+}
+
+pre {
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 1rem !important;
+}
+
+/* ============================================================================
+   CHECKBOX & RADIO - Clean Controls
+   ============================================================================ */
+
+.stCheckbox > label,
+.stRadio > label {
+    color: var(--text-primary) !important;
+    font-family: var(--font-sans) !important;
+    font-size: 0.875rem !important;
+}
+
+/* ============================================================================
+   SCROLLBAR - Subtle, Modern
+   ============================================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ============================================================================
+   CHARTS - Clean Presentation
+   ============================================================================ */
+
+.modebar {
+    display: none !important;
+}
+
+/* ============================================================================
+   SPINNER - Subtle Loading
+   ============================================================================ */
+
+.stSpinner > div {
+    border-top-color: var(--accent-primary) !important;
+}
+
+/* ============================================================================
+   DIVIDERS - Subtle Separators
+   ============================================================================ */
+
+hr {
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    margin: 1.5rem 0;
+}
+
+/* ============================================================================
+   TICKER SYMBOL STYLING - Monospace for financial data
+   ============================================================================ */
+
+.ticker-symbol {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+    background-color: var(--bg-elevated);
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+}
+
+.price-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.price-positive {
+    color: var(--color-success);
+}
+
+.price-negative {
+    color: var(--color-danger);
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.text-mono {
+    font-family: var(--font-mono) !important;
+}
+
+.text-sans {
+    font-family: var(--font-sans) !important;
+}
+
+.text-muted {
+    color: var(--text-tertiary) !important;
+}
+
+.text-primary {
+    color: var(--accent-primary) !important;
+}
+
+.text-success {
+    color: var(--color-success) !important;
+}
+
+.text-danger {
+    color: var(--color-danger) !important;
+}
+
+.bg-card {
+    background-color: var(--bg-card) !important;
+}
+
+/* ============================================================================
+   SPECIAL: NAVIGATION MENU OVERRIDES
+   Keep some custom styling for option_menu but make it cleaner
+   ============================================================================ */
+
+/* These will be overridden in Python for the option_menu component */
+
+/* ============================================================================
+   SIDEBAR PROTECTION - Prevent card styles from leaking into sidebar
+   ============================================================================ */
+
+/* CRITICAL: Sidebar container must allow overflow for dropdowns */
+section[data-testid="stSidebar"] {
+    overflow: visible !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    overflow: visible !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    overflow: visible !important;
+    padding-bottom: 100px !important; /* Extra space for dropdown expansion */
+}
+
+/* Force ALL sidebar elements to have transparent backgrounds - NUCLEAR OPTION */
+section[data-testid="stSidebar"] div {
+    background-color: transparent !important;
+}
+
+/* Re-apply the sidebar background only to the main container */
+section[data-testid="stSidebar"] > div:first-child {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Ensure sidebar text remains visible (white/light) */
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] .stMarkdown,
+section[data-testid="stSidebar"] div {
+    color: var(--text-secondary) !important;
+}
+
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] h4 {
+    color: var(--text-primary) !important;
+}
+
+/* Sidebar input fields need their own background */
+section[data-testid="stSidebar"] .stTextInput > div > div > input,
+section[data-testid="stSidebar"] .stNumberInput > div > div > input,
+section[data-testid="stSidebar"] .stSelectbox > div > div {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Navigation container in sidebar - ensure dark background */
+section[data-testid="stSidebar"] .nav-container,
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div:has(nav) {
+    background-color: transparent !important;
+}
+
+/* Override any card/metric-card styles inside sidebar */
+section[data-testid="stSidebar"] .card,
+section[data-testid="stSidebar"] .metric-card,
+section[data-testid="stSidebar"] .section-card {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Streamlit option_menu container fix */
+section[data-testid="stSidebar"] nav,
+section[data-testid="stSidebar"] nav > div,
+section[data-testid="stSidebar"] nav ul,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+    background-color: transparent !important;
+}
+
+/* Fix for streamlit-option-menu specifically */
+section[data-testid="stSidebar"] .nav-link,
+section[data-testid="stSidebar"] .nav-item {
+    background-color: transparent !important;
+    color: var(--text-secondary) !important;
+}
+
+/* Selected nav item should have subtle background */
+section[data-testid="stSidebar"] .nav-link-selected,
+section[data-testid="stSidebar"] .nav-link.active {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Custom nav-container class for navigation wrapper */
+.nav-container,
+.nav-container * {
+    background-color: transparent !important;
+}
+
+.nav-container nav {
+    background-color: transparent !important;
+    padding: 0 !important;
+}
+
+/* Ensure all stVerticalBlock children in sidebar stay transparent */
+section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div {
+    background-color: transparent !important;
+}
+
+/* Fix potential white box from streamlit's internal border wrapper */
+section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"],
+section[data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* ============================================================================
+   DROPDOWN / SELECTBOX Z-INDEX FIX - Ensure dropdowns appear above everything
+   ============================================================================ */
+
+/* Selectbox dropdown menu needs high z-index */
+section[data-testid="stSidebar"] [data-baseweb="popover"],
+section[data-testid="stSidebar"] [data-baseweb="select"] [data-baseweb="popover"],
+section[data-testid="stSidebar"] div[data-baseweb="popover"] {
+    z-index: 999999 !important;
+    overflow: visible !important;
+}
+
+/* The actual dropdown list */
+section[data-testid="stSidebar"] ul[role="listbox"],
+section[data-testid="stSidebar"] div[role="listbox"] {
+    z-index: 999999 !important;
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-lg) !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+}
+
+/* Dropdown options styling */
+section[data-testid="stSidebar"] li[role="option"],
+section[data-testid="stSidebar"] div[role="option"] {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    padding: 0.5rem 1rem !important;
+}
+
+section[data-testid="stSidebar"] li[role="option"]:hover,
+section[data-testid="stSidebar"] div[role="option"]:hover,
+section[data-testid="stSidebar"] li[aria-selected="true"],
+section[data-testid="stSidebar"] div[aria-selected="true"] {
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Ensure the selectbox container itself doesn't clip */
+section[data-testid="stSidebar"] .stSelectbox {
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 100 !important;
+}
+
+section[data-testid="stSidebar"] .stSelectbox > div {
+    overflow: visible !important;
+}
+
+/* Fix navigation container z-index to be LOWER than dropdowns */
+section[data-testid="stSidebar"] .nav-container {
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+/* ============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .metric-value {
+        font-size: 1.5rem;
+    }
+
+    .card {
+        padding: 1rem;
+    }
+
+    h1 {
+        font-size: 1.5rem !important;
+    }
+}
