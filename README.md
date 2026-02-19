@@ -144,7 +144,7 @@ ollama pull mixtral
 ### Step 2 — Clone & Install Dependencies
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/quantterm-pro.git
+git clone https://github.com/mtfultz/quantterm-pro.git
 cd quantterm-pro
 
 python -m venv .venv
