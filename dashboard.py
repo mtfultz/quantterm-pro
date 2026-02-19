@@ -20,6 +20,7 @@ from strategy import (
     DmiReversalStrategy,
     BidirectionalStrategy
 )
+import requests
 import alpaca_trade_api as tradeapi
 from datetime import datetime
 from joblib import Parallel, delayed
@@ -1122,6 +1123,16 @@ def create_efficient_frontier_plotly(opt_result):
     return fig
 
 
+@st.cache_data(ttl=30)
+def _check_ollama_online() -> bool:
+    """Poll the Ollama /api/tags endpoint. Result cached for 30 s."""
+    try:
+        r = requests.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=3)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def run_walk_forward_backtest(
     close_df, high_df, low_df, volume_df,
     strategy_class, signal_param_ranges,
@@ -2055,6 +2066,15 @@ with st.sidebar:
         <h3 style="font-size: 1rem; font-weight: 600; color: #E6EDF3; margin: 0;">Settings</h3>
     </div>
     """, unsafe_allow_html=True)
+
+    # AI Engine status indicator
+    _ollama_online = _check_ollama_online()
+    _ollama_host_label = config.OLLAMA_BASE_URL.split("://")[-1].split("/")[0]
+    render_status_badge(
+        f"AI Engine — {_ollama_host_label}",
+        status="online" if _ollama_online else "offline",
+    )
+    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True)
 
     st.markdown('<p style="font-size: 0.75rem; font-weight: 600; color: #8B949E; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Market Data</p>', unsafe_allow_html=True)
 
@@ -4959,7 +4979,7 @@ elif selected_page == "Live Terminal":
                 except Exception as copilot_err:
                     st.error(
                         f"AI Copilot error: {copilot_err}. "
-                        "Ensure Ollama is running and reachable on localhost."
+                        f"Ensure Ollama is running and reachable at {config.OLLAMA_BASE_URL}."
                     )
 
     except Exception as e:

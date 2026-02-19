@@ -18,7 +18,7 @@ ALPACA_BASE_URL = 'https://paper-api.alpaca.markets'  # Paper trading endpoint
 
 # Ollama config
 OLLAMA_MODEL = "mixtral"  # Model running on RTX 5090
-OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama endpoint
+OLLAMA_BASE_URL = os.getenv('OLLAMA_HOST', 'http://localhost:11434')  # Override via env var for remote servers
 OLLAMA_TIMEOUT = 60  # Timeout in seconds for AI inference
 
 # Trading Parameters

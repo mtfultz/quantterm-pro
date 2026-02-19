@@ -5,7 +5,7 @@ Connects to local Ollama (mixtral) to make trading decisions based on context.
 
 import json
 import logging
-import ollama
+from ollama import Client as OllamaClient
 from datetime import datetime
 from typing import Dict, Optional
 import config
@@ -39,15 +39,16 @@ class AIBrain:
         self.model = model or config.OLLAMA_MODEL
         self.timeout = timeout or config.OLLAMA_TIMEOUT
         self.request_count = 0
+        self._client = OllamaClient(host=config.OLLAMA_BASE_URL)
 
-        logger.info(f"AIBrain initialized with model: {self.model}")
+        logger.info(f"AIBrain initialized with model: {self.model}, host: {config.OLLAMA_BASE_URL}")
         self._verify_ollama_connection()
 
     def _verify_ollama_connection(self) -> bool:
         """Verify that Ollama is running and the model is available."""
         try:
-            # List available models
-            models = ollama.list()
+            # List available models on the configured host
+            models = self._client.list()
             model_names = [m['name'] for m in models.get('models', [])]
 
             if not any(self.model in name for name in model_names):
@@ -130,8 +131,8 @@ Based on this data, should I BUY or HOLD? Respond with JSON only."""
 
         for attempt in range(retry_count + 1):
             try:
-                # Call Ollama with structured output (format='json')
-                response = ollama.chat(
+                # Call Ollama on the configured remote/local host
+                response = self._client.chat(
                     model=self.model,
                     messages=[
                         {
