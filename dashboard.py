@@ -519,6 +519,7 @@ def generate_multi_asset_signals(
     long_exits_dict = {}
     short_exits_dict = {}
     skipped_entries_dict = {}
+    size_dict = {}
     failed_tickers = []
 
     close_df = price_data.get('Close')
@@ -554,6 +555,8 @@ def generate_multi_asset_signals(
             se = sig['short_entries'].squeeze()
             lx = sig['long_exits'].squeeze()
             sx = sig['short_exits'].squeeze()
+            sz = sig.get('size', np.full(len(close), np.inf))
+            sz = np.squeeze(sz)
 
             # Apply signal_filter (ADX mask) if applicable
             if filter_params:
@@ -592,6 +595,7 @@ def generate_multi_asset_signals(
             short_entries_dict[tkr] = pd.Series(se, index=close.index)
             long_exits_dict[tkr] = pd.Series(lx, index=close.index)
             short_exits_dict[tkr] = pd.Series(sx, index=close.index)
+            size_dict[tkr] = pd.Series(sz, index=close.index)
 
         except Exception:
             failed_tickers.append(tkr)
@@ -605,6 +609,7 @@ def generate_multi_asset_signals(
         'long_exits': pd.DataFrame(long_exits_dict).fillna(False),
         'short_exits': pd.DataFrame(short_exits_dict).fillna(False),
         'skipped_entries': pd.DataFrame(skipped_entries_dict).fillna(False),
+        'size': pd.DataFrame(size_dict).fillna(np.inf),
         'failed_tickers': failed_tickers,
     }
 
@@ -1251,6 +1256,7 @@ def run_walk_forward_backtest(
         lx_tr_sup = np.column_stack([train_sigs[t]['long_exits'].reshape(T_tr, -1)   for t in grid_valid_tickers])
         se_tr_sup = np.column_stack([train_sigs[t]['short_entries'].reshape(T_tr, -1) for t in grid_valid_tickers])
         sx_tr_sup = np.column_stack([train_sigs[t]['short_exits'].reshape(T_tr, -1)   for t in grid_valid_tickers])
+        sz_tr_sup = np.column_stack([train_sigs[t].get('size', np.full((T_tr, n_combos), np.inf)).reshape(T_tr, -1) for t in grid_valid_tickers])
 
         close_super_arr = np.column_stack([
             np.tile(close_tr[t].values[:, None], (1, n_combos)) for t in grid_valid_tickers
@@ -1288,6 +1294,7 @@ def run_walk_forward_backtest(
                         close_super_tr, entries=le_tr_sup, exits=lx_tr_sup,
                         short_entries=se_tr_sup, short_exits=sx_tr_sup,
                         sl_stop=sl, tp_stop=tp,
+                        size=sz_tr_sup, size_type='amount',
                         freq=vbt_freq, init_cash=10000, fees=0.001,
                     )
                     ret_arr  = pf_tr.returns().values         # (T_tr, M*N)
@@ -1327,11 +1334,16 @@ def run_walk_forward_backtest(
                 t: sx_tr_sup[:, ti * n_combos + best_signal_idx]
                 for ti, t in enumerate(grid_valid_tickers)
             }, index=close_tr.index)
+            is_sz = pd.DataFrame({
+                t: sz_tr_sup[:, ti * n_combos + best_signal_idx]
+                for ti, t in enumerate(grid_valid_tickers)
+            }, index=close_tr.index)
 
             pf_is = vbt.Portfolio.from_signals(
                 close_tr, entries=is_le, exits=is_lx,
                 short_entries=is_se, short_exits=is_sx,
                 sl_stop=best_sl_fold, tp_stop=best_tp_fold,
+                size=is_sz, size_type='amount',
                 freq=vbt_freq, init_cash=10000, fees=0.001,
             )
             is_returns_list.append(pf_is.returns().mean(axis=1))
@@ -1369,6 +1381,10 @@ def run_walk_forward_backtest(
                 t: test_sigs[t]['short_exits'].reshape(T_te, -1)[:, best_signal_idx]
                 for t in grid_valid_tickers if t in test_sigs
             }, index=close_te.index)
+            oos_sz = pd.DataFrame({
+                t: test_sigs[t].get('size', np.full((T_te, n_combos), np.inf)).reshape(T_te, -1)[:, best_signal_idx]
+                for t in grid_valid_tickers if t in test_sigs
+            }, index=close_te.index)
 
             # Save pre-mask base signals for gross portfolio (Task 3) and
             # hysteresis sensitivity sweep (Task 4)
@@ -1395,6 +1411,7 @@ def run_walk_forward_backtest(
                 close_te, entries=oos_le, exits=oos_lx,
                 short_entries=oos_se, short_exits=oos_sx,
                 sl_stop=best_sl_fold, tp_stop=best_tp_fold,
+                size=oos_sz, size_type='amount',
                 freq=vbt_freq, init_cash=10000, fees=0.001,
             )
             # Strip the 200-bar warmup prefix — only keep returns from test_start onward
@@ -1433,6 +1450,7 @@ def run_walk_forward_backtest(
                     close_te, entries=oos_le, exits=oos_lx,
                     short_entries=oos_se, short_exits=oos_sx,
                     sl_stop=best_sl_fold, tp_stop=best_tp_fold,
+                    size=oos_sz, size_type='amount',
                     freq=vbt_freq, init_cash=10000, fees=0.0,
                 )
                 gross_raw = pf_oos_gross.returns().mean(axis=1)
@@ -1447,6 +1465,7 @@ def run_walk_forward_backtest(
                 'lx':         oos_lx_base,
                 'se':         oos_se_base,
                 'sx':         oos_sx_base,
+                'sz':         oos_sz,
                 'sl':         best_sl_fold,
                 'tp':         best_tp_fold,
                 'test_start': fold['test_start'],
@@ -1566,6 +1585,7 @@ def compute_hysteresis_sensitivity(
                         close_te, entries=le, exits=lx,
                         short_entries=se, short_exits=sx,
                         sl_stop=fs['sl'], tp_stop=fs['tp'],
+                        size=fs['sz'], size_type='amount',
                         freq=vbt_freq, init_cash=10000, fees=0.001,
                     )
                     r = pf.returns().mean(axis=1)
@@ -2555,6 +2575,7 @@ if selected_page == "Main Terminal":
                         short_entries_df = signals['short_entries'][valid_tickers]
                         long_exits_df = signals['long_exits'][valid_tickers]
                         short_exits_df = signals['short_exits'][valid_tickers]
+                        size_df = signals['size'][valid_tickers]
 
                         # 3. Build sl_stop
                         has_per_side_sl = bool(long_sl_params) and bool(short_sl_params)
@@ -2578,6 +2599,8 @@ if selected_page == "Main Terminal":
                                 short_exits=short_exits_df,
                                 sl_stop=sl_stop,
                                 tp_stop=quick_tp_pct,
+                                size=size_df,
+                                size_type='amount',
                                 freq=vbt_freq,
                                 init_cash=10000,
                                 fees=0.001,
@@ -2737,6 +2760,9 @@ if selected_page == "Main Terminal":
                         short_entries = sig['short_entries'].squeeze()
                         long_exits    = sig['long_exits'].squeeze()
                         short_exits   = sig['short_exits'].squeeze()
+                        size          = sig.get('size', np.inf)
+                        if hasattr(size, 'squeeze'):
+                            size = size.squeeze()
 
                         # Apply signal_filter
                         if filter_params:
@@ -2794,6 +2820,7 @@ if selected_page == "Main Terminal":
                             entries=long_entries, exits=long_exits,
                             short_entries=short_entries, short_exits=short_exits,
                             sl_stop=sl_stop, tp_stop=quick_tp_pct,
+                            size=size, size_type='amount',
                             freq=vbt_freq, init_cash=10000, fees=0.001,
                         )
 
@@ -3240,6 +3267,9 @@ elif selected_page == "Grid Search":
             short_exits_super = np.column_stack([
                 per_ticker_signals[tkr]['short_exits'].reshape(T, -1) for tkr in grid_valid_tickers
             ])
+            size_super = np.column_stack([
+                per_ticker_signals[tkr].get('size', np.full((T, n_combos), np.inf)).reshape(T, -1) for tkr in grid_valid_tickers
+            ])
 
             # Build super close: repeat each ticker's close n_combos times
             close_super_arr = np.column_stack([
@@ -3329,6 +3359,7 @@ elif selected_page == "Grid Search":
                             close_super, entries=long_entries, exits=long_exits,
                             short_entries=short_entries, short_exits=short_exits_super,
                             sl_stop=sl_stop_arr, tp_stop=tp,
+                            size=size_super, size_type='amount',
                             freq=vbt_freq, init_cash=10000, fees=0.001,
                         )
 
@@ -3391,6 +3422,7 @@ elif selected_page == "Grid Search":
                                 close_super, entries=long_entries, exits=long_exits,
                                 short_entries=short_entries, short_exits=short_exits_super,
                                 sl_stop=sl, tp_stop=tp,
+                                size=size_super, size_type='amount',
                                 freq=vbt_freq, init_cash=10000, fees=0.001,
                             )
 
@@ -3556,6 +3588,7 @@ elif selected_page == "Grid Search":
                         opt_se = opt_signals['short_entries'][grid_valid_tickers]
                         opt_lx = opt_signals['long_exits'][grid_valid_tickers]
                         opt_sx = opt_signals['short_exits'][grid_valid_tickers]
+                        opt_size = opt_signals['size'][grid_valid_tickers]
 
                         opt_tp_pct = best['Take Profit (%)'] / 100.0
                         if has_per_side_sl:
@@ -3569,6 +3602,7 @@ elif selected_page == "Grid Search":
                             close_df, entries=opt_le, exits=opt_lx,
                             short_entries=opt_se, short_exits=opt_sx,
                             sl_stop=opt_sl_stop, tp_stop=opt_tp_pct,
+                            size=opt_size, size_type='amount',
                             freq=vbt_freq, init_cash=10000, fees=0.001,
                         )
 
@@ -3893,6 +3927,7 @@ elif selected_page == "Grid Search":
                 long_exits         = sig['long_exits']
                 short_exits        = sig['short_exits']
                 param_columns      = sig['param_columns']
+                base_size          = sig.get('size', np.full_like(sig['long_entries'], np.inf, dtype=float))
             else:
                 # Fallback: RSI+EMA logic for strategies without vectorized signals
                 rsi = vbt.RSI.run(close, window=14).rsi
@@ -3919,6 +3954,7 @@ elif selected_page == "Grid Search":
                 base_short_entries = trend_down_2d & (rsi_2d > flat_b)
                 long_exits    = trend_down_2d
                 short_exits   = trend_up_2d
+                base_size     = np.full_like(base_long_entries, np.inf, dtype=float)
                 param_columns = {}
                 if len(signal_param_names) >= 2:
                     param_columns[strategy_param_labels[signal_param_names[0]]] = flat_a
@@ -3978,6 +4014,8 @@ elif selected_page == "Grid Search":
                             short_exits=short_exits,
                             sl_stop=sl_stop_arr,
                             tp_stop=tp,
+                            size=base_size,
+                            size_type='amount',
                             freq=vbt_freq,
                             init_cash=10000,
                             fees=0.001,
@@ -4038,6 +4076,8 @@ elif selected_page == "Grid Search":
                                 short_exits=short_exits,
                                 sl_stop=sl,
                                 tp_stop=tp,
+                                size=base_size,
+                                size_type='amount',
                                 freq=vbt_freq,
                                 init_cash=10000,
                                 fees=0.001,
@@ -4317,6 +4357,9 @@ elif selected_page == "Grid Search":
                             opt_short_entries = opt_sig['short_entries'].squeeze()
                             opt_long_exits    = opt_sig['long_exits'].squeeze()
                             opt_short_exits   = opt_sig['short_exits'].squeeze()
+                            opt_size_arr      = opt_sig.get('size', np.inf)
+                            if hasattr(opt_size_arr, 'squeeze'):
+                                opt_size_arr = opt_size_arr.squeeze()
                         else:
                             # Fallback uses RSI and EMA for custom strategies
                             rsi = vbt.RSI.run(close, window=14).rsi
@@ -4331,6 +4374,7 @@ elif selected_page == "Grid Search":
                             opt_short_entries = (trend_down.values & (rsi.values > opt_val_b))
                             opt_long_exits    = trend_down.values
                             opt_short_exits   = trend_up.values
+                            opt_size_arr      = np.inf
 
                         # Apply signal filter if applicable
                         if has_signal_filter and adx_series is not None:
@@ -4355,6 +4399,7 @@ elif selected_page == "Grid Search":
                             entries=opt_long_entries, exits=opt_long_exits,
                             short_entries=opt_short_entries, short_exits=opt_short_exits,
                             sl_stop=opt_sl_stop, tp_stop=opt_tp_pct,
+                            size=opt_size_arr, size_type='amount',
                             freq=vbt_freq, init_cash=10000, fees=0.001,
                         )
 

@@ -316,6 +316,9 @@ class TrendAtrStrategy:
 
         entries = np.zeros((T, N), dtype=bool)
         exits = np.zeros((T, N), dtype=bool)
+        sizes = np.zeros((T, N), dtype=float)
+
+        atr = ta.atr(high, low, close, length=14).values
 
         smas = {}
         for sma_len in np.unique(flat_sma):
@@ -351,12 +354,16 @@ class TrendAtrStrategy:
             st_bear_prev[0] = False
             exits[:, i] = st_bear & ~st_bear_prev
 
+            stop_dist = atr * mult_val
+            sizes[:, i] = np.where(stop_dist > 0, 200.0 / stop_dist, 0.0)
+
         zeros = np.zeros_like(entries)
         return {
             'long_entries': entries,
             'long_exits': exits,
             'short_entries': zeros,
             'short_exits': zeros,
+            'size': sizes,
             'param_columns': {
                 'Trend SMA': flat_sma,
                 'ATR Multiplier': flat_mult
