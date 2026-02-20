@@ -1297,10 +1297,13 @@ def run_walk_forward_backtest(
                     stds     = comb_2d.std(axis=0)
                     sharpes  = np.divide(means, stds, out=np.zeros_like(means), where=stds > 0) * np.sqrt(ann_factor)
 
-                    idx = int(np.argmax(sharpes))
-                    if sharpes[idx] > best_sharpe_fold:
-                        best_sharpe_fold = float(sharpes[idx])
-                        best_signal_idx  = idx
+                    valid_sharpes = np.where(np.isnan(sharpes), -np.inf, sharpes)
+                    n_top = max(1, int(len(valid_sharpes) * 0.05))
+                    top_indices = np.argsort(valid_sharpes)[-n_top:]
+                    stable_idx = int(top_indices[len(top_indices) // 2])
+                    if valid_sharpes[stable_idx] > best_sharpe_fold:
+                        best_sharpe_fold = float(valid_sharpes[stable_idx])
+                        best_signal_idx  = stable_idx
                         best_sl_fold     = sl
                         best_tp_fold     = tp
                 except Exception:
@@ -3453,7 +3456,7 @@ elif selected_page == "Grid Search":
                 df_results = pd.concat(all_results, ignore_index=True)
                 df_results = df_results[df_results['Total Trades'] > 0]
                 df_results = df_results.dropna(subset=['Return (%)'])
-                df_results = df_results.sort_values('Return (%)', ascending=False)
+                df_results = df_results.sort_values('Sharpe Ratio', ascending=False)
 
                 st.success(
                     f"Portfolio optimization complete in **{elapsed:.1f}s**! "
@@ -3483,8 +3486,10 @@ elif selected_page == "Grid Search":
                     styled = styled.format(format_dict, na_rep='-')
                     st.dataframe(styled, use_container_width=True)
 
-                    # Optimal Parameters
-                    best = df_results.iloc[0]
+                    # Optimal Parameters (stability island: median of top 5%)
+                    n_top_grid = max(1, int(len(df_results) * 0.05))
+                    top_cluster = df_results.head(n_top_grid)
+                    best = top_cluster.iloc[len(top_cluster) // 2]
                     st.markdown("### Optimal Portfolio Parameters")
                     opt_cols = st.columns(min(6, len(best)))
                     for i, (col_name, val) in enumerate(best.items()):
@@ -4090,7 +4095,7 @@ elif selected_page == "Grid Search":
                 df_results = pd.concat(all_results, ignore_index=True)
                 df_results = df_results[df_results['Total Trades'] > 0]
                 df_results = df_results.dropna(subset=['Return (%)'])
-                df_results = df_results.sort_values('Return (%)', ascending=False)
+                df_results = df_results.sort_values('Sharpe Ratio', ascending=False)
 
                 st.success(
                     f"VectorBT optimization complete in **{elapsed:.1f}s**! "
@@ -4132,8 +4137,10 @@ elif selected_page == "Grid Search":
                     styled_df = df_results.head(10).style.apply(highlight_best, axis=1).format(format_dict)
                     st.dataframe(styled_df, use_container_width=True)
 
-                    # Best parameters - dynamic columns
-                    best = df_results.iloc[0]
+                    # Best parameters (stability island: median of top 5%)
+                    n_top_grid = max(1, int(len(df_results) * 0.05))
+                    top_cluster = df_results.head(n_top_grid)
+                    best = top_cluster.iloc[len(top_cluster) // 2]
                     st.markdown("### Optimal Parameters")
 
                     # Only show params that were actually optimized (have columns in df_results)s
@@ -4421,7 +4428,7 @@ elif selected_page == "Grid Search":
                 df_results = pd.concat(all_results, ignore_index=True)
                 df_results = df_results[df_results['Total Trades'] > 0]
                 df_results = df_results.dropna(subset=['Return (%)'])
-                df_results = df_results.sort_values('Return (%)', ascending=False)
+                df_results = df_results.sort_values('Sharpe Ratio', ascending=False)
 
                 st.success(
                     f"Partial results recovered! "
@@ -4461,8 +4468,10 @@ elif selected_page == "Grid Search":
                     styled_df = df_results.head(10).style.apply(highlight_best, axis=1).format(format_dict)
                     st.dataframe(styled_df, use_container_width=True)
 
-                    # Best parameters - dynamic columns
-                    best = df_results.iloc[0]
+                    # Best parameters (stability island: median of top 5%)
+                    n_top_grid = max(1, int(len(df_results) * 0.05))
+                    top_cluster = df_results.head(n_top_grid)
+                    best = top_cluster.iloc[len(top_cluster) // 2]
                     st.markdown("### Optimal Parameters")
 
                     active_params = {p: cfg for p, cfg in param_opt_configs.items() if cfg['label'] in df_results.columns}
