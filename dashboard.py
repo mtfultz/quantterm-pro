@@ -943,6 +943,46 @@ def compute_hrp_optimization(per_asset_returns, close_df, rebalance_freq='Monthl
     }
 
 
+def compute_cvar_optimization(per_asset_returns, rebalance_freq='Monthly'):
+    """Compute Mean-CVaR portfolio weights (minimizes worst 5% tail risk).
+
+    Args:
+        per_asset_returns: DataFrame of daily strategy returns per asset
+        rebalance_freq: 'Never', 'Monthly', 'Quarterly', 'Yearly'
+
+    Returns:
+        dict with weights, equity curves, and rebalancing data
+    """
+    from pypfopt import EfficientCVaR, expected_returns
+
+    mu = per_asset_returns.mean() * 252
+
+    ec = EfficientCVaR(mu, per_asset_returns, beta=0.95)
+    try:
+        ec.min_cvar()
+    except Exception:
+        pass
+
+    weights = ec.clean_weights()
+    weights_nonzero = {k: v for k, v in weights.items() if v > 0.0001}
+
+    rebal_result = compute_rebalanced_equity(
+        per_asset_returns, weights, rebalance_freq=rebalance_freq, fees=0.001
+    )
+
+    return {
+        'weights': weights,
+        'weights_nonzero': weights_nonzero,
+        'optimized_returns': rebal_result['rebalanced_returns'],
+        'optimized_equity': rebal_result['rebalanced_equity'],
+        'drifting_equity': rebal_result['drifting_equity'],
+        'drifting_returns': rebal_result['drifting_returns'],
+        'total_turnover': rebal_result['total_turnover'],
+        'num_rebalances': rebal_result['num_rebalances'],
+        'rebalance_freq': rebalance_freq,
+    }
+
+
 def compute_rebalanced_equity(per_asset_returns, weights, rebalance_freq='Monthly', fees=0.001):
     """Simulate portfolio with periodic rebalancing and drifting weights.
 
@@ -1195,6 +1235,7 @@ def run_walk_forward_backtest(
     _tp_range = tp_range if len(tp_range) > 0 else np.array([0.04])
 
     oos_returns_list       = []
+    oos_asset_returns_list = []   # Per-asset OOS returns (DataFrame) for rolling MVO
     is_returns_list        = []
     fold_records           = []
     oos_gross_returns_list = []   # Task 3: gross (fee-free) OOS returns
@@ -1415,9 +1456,11 @@ def run_walk_forward_backtest(
                 freq=vbt_freq, init_cash=10000, fees=0.001,
             )
             # Strip the 200-bar warmup prefix — only keep returns from test_start onward
-            oos_raw      = pf_oos.returns().mean(axis=1)
+            oos_asset_rets = pf_oos.returns()
+            oos_raw      = oos_asset_rets.mean(axis=1)
             oos_stripped = oos_raw[oos_raw.index >= fold['test_start']]
             oos_returns_list.append(oos_stripped)
+            oos_asset_returns_list.append(oos_asset_rets[oos_asset_rets.index >= fold['test_start']])
 
             # --- Per-fold OOS diagnostics (Task 1) ---
             if len(oos_stripped) > 1 and oos_stripped.std() > 0:
@@ -1519,6 +1562,13 @@ def run_walk_forward_backtest(
         is_equity = oos_equity
         is_ret, is_sharpe, is_dd = oos_ret, oos_sharpe, oos_dd
 
+    # Stitch per-asset OOS returns for rolling MVO allocator
+    if oos_asset_returns_list:
+        oos_stitched_returns = pd.concat(oos_asset_returns_list).sort_index()
+        oos_stitched_returns = oos_stitched_returns.loc[~oos_stitched_returns.index.duplicated(keep='first')]
+    else:
+        oos_stitched_returns = None
+
     # Task 3: stitch gross (fee-free) OOS equity
     if oos_gross_returns_list:
         gross_combined   = pd.concat(oos_gross_returns_list).sort_index()
@@ -1536,6 +1586,7 @@ def run_walk_forward_backtest(
         'n_folds':           len(fold_records),
         'oos_equity_gross':  oos_equity_gross,   # Task 3
         'oos_base_signals':  oos_base_signals_list,  # Task 4
+        'oos_stitched_returns': oos_stitched_returns,  # Per-asset returns for rolling MVO
     }
 
 
@@ -1598,6 +1649,58 @@ def compute_hysteresis_sensitivity(
                 results[i, j] = float(all_r.mean() / std * np.sqrt(ann_factor)) if std > 0 else 0.0
 
     return results, lower_range, upper_range
+
+
+def compute_rolling_mvo_equity(oos_returns, lookback_days=126):
+    """Rolling Markowitz allocator on stitched OOS returns (no lookahead).
+
+    Every ~21 trading days, re-estimate max-Sharpe weights using only the
+    trailing lookback_days window of OOS returns.  Falls back to
+    min-volatility if max-Sharpe fails, or retains the previous weights
+    if both solvers fail.
+
+    Args:
+        oos_returns: DataFrame of per-asset OOS daily returns (T x M)
+        lookback_days: estimation window length (default 126 ≈ 6 months)
+
+    Returns:
+        Series of rolling MVO portfolio equity (starting at $10,000),
+        or None if insufficient data.
+    """
+    from pypfopt import EfficientFrontier, risk_models
+
+    if oos_returns is None or len(oos_returns) <= lookback_days:
+        return None
+
+    portfolio_returns = pd.Series(0.0, index=oos_returns.index)
+    current_weights = np.ones(oos_returns.shape[1]) / oos_returns.shape[1]
+
+    for i in range(lookback_days, len(oos_returns), 21):
+        window_returns = oos_returns.iloc[i - lookback_days:i]
+
+        mu = window_returns.mean() * 252
+        S = risk_models.sample_cov(window_returns, returns_data=True)
+
+        try:
+            ef = EfficientFrontier(mu, S)
+            ef.max_sharpe(risk_free_rate=0.0)
+            w = ef.clean_weights()
+            current_weights = np.array([w.get(c, 0.0) for c in oos_returns.columns])
+        except Exception:
+            try:
+                ef = EfficientFrontier(mu, S)
+                ef.min_volatility()
+                w = ef.clean_weights()
+                current_weights = np.array([w.get(c, 0.0) for c in oos_returns.columns])
+            except Exception:
+                pass
+
+        end_idx = min(i + 21, len(oos_returns))
+        period_returns = oos_returns.iloc[i:end_idx].dot(current_weights)
+        portfolio_returns.iloc[i:end_idx] = period_returns
+
+    rolling_equity = 10000 * (1 + portfolio_returns.iloc[lookback_days:]).cumprod()
+    return rolling_equity
 
 
 def create_hysteresis_heatmap(matrix, lower_range, upper_range,
@@ -1689,31 +1792,32 @@ def create_dendrogram_chart(returns_df):
     return fig
 
 
-def create_model_comparison_bar_chart(mvo_weights, hrp_weights):
-    """Create grouped bar chart comparing MVO vs HRP allocation weights."""
+def create_model_comparison_bar_chart(model_weights_list):
+    """Create grouped bar chart comparing allocation weights across models.
+
+    Args:
+        model_weights_list: list of (label, weights_dict, color) tuples
+    """
     all_tickers = sorted(
-        set(mvo_weights) | set(hrp_weights),
-        key=lambda t: mvo_weights.get(t, 0), reverse=True
+        set().union(*(w for _, w, _ in model_weights_list)),
+        key=lambda t: model_weights_list[0][1].get(t, 0), reverse=True
     )
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name='Markowitz (MVO)', x=all_tickers,
-        y=[mvo_weights.get(t, 0) * 100 for t in all_tickers],
-        marker_color='#2962ff',
-    ))
-    fig.add_trace(go.Bar(
-        name='HRP', x=all_tickers,
-        y=[hrp_weights.get(t, 0) * 100 for t in all_tickers],
-        marker_color='#00e676',
-    ))
+    for label, weights, color in model_weights_list:
+        fig.add_trace(go.Bar(
+            name=label, x=all_tickers,
+            y=[weights.get(t, 0) * 100 for t in all_tickers],
+            marker_color=color,
+        ))
 
+    model_names = ' vs '.join(label for label, _, _ in model_weights_list)
     fig.update_layout(
         barmode='group',
         template='plotly_dark',
         paper_bgcolor='#121212', plot_bgcolor='#1E1E1E',
         font=dict(color='#E6EDF3'),
-        title=dict(text='Weight Comparison: Markowitz vs HRP', font=dict(size=14, color='#E6EDF3')),
+        title=dict(text=f'Weight Comparison: {model_names}', font=dict(size=14, color='#E6EDF3')),
         yaxis_title='Allocation (%)',
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -1875,9 +1979,15 @@ def display_multi_asset_results(results):
 
     # Portfolio Allocation Models
     hrp = results.get('hrp_optimization')
-    has_mvo = opt is not None
-    has_hrp = hrp is not None
-    has_both = has_mvo and has_hrp
+    cvar = results.get('cvar_optimization')
+
+    # Build dynamic list of active models: (key, label, short_label, color, result_dict)
+    _model_defs = [
+        ('mvo', 'Markowitz (MVO)', 'MVO', '#2962ff', opt),
+        ('hrp', 'Hierarchical Risk Parity', 'HRP', '#00e676', hrp),
+        ('cvar', 'Mean-CVaR (Tail Risk)', 'CVaR', '#ff6d00', cvar),
+    ]
+    active_models = [(key, label, short, color, res) for key, label, short, color, res in _model_defs if res is not None]
 
     def _compute_model_metrics(model_result, label):
         """Helper to compute return, sharpe, max DD, top-3 concentration for a model."""
@@ -1893,96 +2003,77 @@ def display_multi_asset_results(results):
         return {'label': label, 'return': ret, 'sharpe': sharpe, 'max_dd': max_dd,
                 'top3_pct': top3_pct, 'positions': len(model_result['weights_nonzero'])}
 
-    if has_both:
-        # Side by Side Model Comparison
-        mvo_m = _compute_model_metrics(opt, 'Markowitz (MVO)')
-        hrp_m = _compute_model_metrics(hrp, 'HRP')
+    if len(active_models) >= 2:
+        # Multi-model comparison
+        model_metrics = {key: _compute_model_metrics(res, short) for key, _, short, _, res in active_models}
 
         with st.expander("Portfolio Allocation — Model Comparison", expanded=True):
             # Comparison metrics table
-            comp_df = pd.DataFrame([
-                {'Metric': 'Return (%)', 'Markowitz (MVO)': f"{mvo_m['return']:.2f}",
-                 'HRP': f"{hrp_m['return']:.2f}"},
-                {'Metric': 'Sharpe Ratio', 'Markowitz (MVO)': f"{mvo_m['sharpe']:.2f}",
-                 'HRP': f"{hrp_m['sharpe']:.2f}"},
-                {'Metric': 'Max Drawdown (%)', 'Markowitz (MVO)': f"{mvo_m['max_dd']:.2f}",
-                 'HRP': f"{hrp_m['max_dd']:.2f}"},
-                {'Metric': 'Top 3 Holdings (%)', 'Markowitz (MVO)': f"{mvo_m['top3_pct']:.1f}",
-                 'HRP': f"{hrp_m['top3_pct']:.1f}"},
-                {'Metric': 'Positions', 'Markowitz (MVO)': f"{mvo_m['positions']}",
-                 'HRP': f"{hrp_m['positions']}"},
-            ])
-            st.dataframe(comp_df, use_container_width=True, hide_index=True)
+            metrics_list = ['Return (%)', 'Sharpe Ratio', 'Max Drawdown (%)', 'Top 3 Holdings (%)', 'Positions']
+            comp_rows = []
+            for metric_name in metrics_list:
+                row = {'Metric': metric_name}
+                for key, _, short, _, _ in active_models:
+                    m = model_metrics[key]
+                    if metric_name == 'Return (%)':
+                        row[short] = f"{m['return']:.2f}"
+                    elif metric_name == 'Sharpe Ratio':
+                        row[short] = f"{m['sharpe']:.2f}"
+                    elif metric_name == 'Max Drawdown (%)':
+                        row[short] = f"{m['max_dd']:.2f}"
+                    elif metric_name == 'Top 3 Holdings (%)':
+                        row[short] = f"{m['top3_pct']:.1f}"
+                    elif metric_name == 'Positions':
+                        row[short] = f"{m['positions']}"
+                comp_rows.append(row)
+            st.dataframe(pd.DataFrame(comp_rows), use_container_width=True, hide_index=True)
 
             # Grouped bar chart: weight comparison
-            fig_comp = create_model_comparison_bar_chart(opt['weights_nonzero'], hrp['weights_nonzero'])
+            bar_data = [(short, res['weights_nonzero'], color) for _, _, short, color, res in active_models]
+            fig_comp = create_model_comparison_bar_chart(bar_data)
             st.plotly_chart(fig_comp, use_container_width=True, config={'displayModeBar': False})
 
-            # Two columns: MVO left, HRP right
-            col_mvo, col_hrp = st.columns(2)
-            with col_mvo:
-                st.markdown("#### Markowitz (MVO)")
-                fig_weights = create_weights_bar_chart(opt['weights_nonzero'])
-                st.plotly_chart(fig_weights, use_container_width=True, config={'displayModeBar': False})
+            # Individual model columns
+            model_cols = st.columns(len(active_models))
+            for col, (key, label, short, color, res) in zip(model_cols, active_models):
+                with col:
+                    st.markdown(f"#### {label}")
+                    fig_weights = create_weights_bar_chart(res['weights_nonzero'])
+                    st.plotly_chart(fig_weights, use_container_width=True, config={'displayModeBar': False})
+                    if key == 'mvo' and opt is not None:
+                        fig_frontier = create_efficient_frontier_plotly(opt)
+                        st.plotly_chart(fig_frontier, use_container_width=True, config={'displayModeBar': False})
+                    if key == 'hrp' and hrp is not None and hrp.get('returns_df') is not None:
+                        fig_dendro = create_dendrogram_chart(hrp['returns_df'])
+                        st.plotly_chart(fig_dendro, use_container_width=True, config={'displayModeBar': False})
+
+    elif len(active_models) == 1:
+        # Single model display
+        key, label, short, color, res = active_models[0]
+        rebal_freq = res.get('rebalance_freq', 'Never')
+        rebal_label = f" — {rebal_freq} Rebalancing" if rebal_freq != 'Never' else " — Buy & Hold"
+        with st.expander(f"Portfolio Allocation ({short}{rebal_label})", expanded=True):
+            m = _compute_model_metrics(res, short)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                delta_ret = m['return'] - results['portfolio_return']
+                st.metric(f"{short} Return", f"{m['return']:.2f}%",
+                          delta=f"{delta_ret:+.2f}% vs EW")
+            with col2:
+                delta_sharpe = m['sharpe'] - results['portfolio_sharpe']
+                st.metric(f"{short} Sharpe", f"{m['sharpe']:.2f}",
+                          delta=f"{delta_sharpe:+.2f} vs EW")
+            with col3:
+                st.metric(f"{short} Max DD", f"{m['max_dd']:.2f}%")
+            with col4:
+                st.metric("Positions", f"{m['positions']} / {results['num_assets']}")
+
+            fig_weights = create_weights_bar_chart(res['weights_nonzero'])
+            st.plotly_chart(fig_weights, use_container_width=True, config={'displayModeBar': False})
+            if key == 'mvo' and opt is not None:
                 fig_frontier = create_efficient_frontier_plotly(opt)
                 st.plotly_chart(fig_frontier, use_container_width=True, config={'displayModeBar': False})
-
-            with col_hrp:
-                st.markdown("#### Hierarchical Risk Parity")
-                fig_hrp_weights = create_weights_bar_chart(hrp['weights_nonzero'])
-                st.plotly_chart(fig_hrp_weights, use_container_width=True, config={'displayModeBar': False})
-                if hrp.get('returns_df') is not None:
-                    fig_dendro = create_dendrogram_chart(hrp['returns_df'])
-                    st.plotly_chart(fig_dendro, use_container_width=True, config={'displayModeBar': False})
-
-    elif has_mvo:
-        # Markowitz Only
-        rebal_freq = opt.get('rebalance_freq', 'Never')
-        rebal_label = f" — {rebal_freq} Rebalancing" if rebal_freq != 'Never' else " — Buy & Hold"
-        with st.expander(f"Portfolio Allocation (Markowitz{rebal_label})", expanded=True):
-            mvo_m = _compute_model_metrics(opt, 'Markowitz')
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                delta_ret = mvo_m['return'] - results['portfolio_return']
-                st.metric("Optimized Return", f"{mvo_m['return']:.2f}%",
-                          delta=f"{delta_ret:+.2f}% vs EW")
-            with col2:
-                delta_sharpe = mvo_m['sharpe'] - results['portfolio_sharpe']
-                st.metric("Optimized Sharpe", f"{mvo_m['sharpe']:.2f}",
-                          delta=f"{delta_sharpe:+.2f} vs EW")
-            with col3:
-                st.metric("Optimized Max DD", f"{mvo_m['max_dd']:.2f}%")
-            with col4:
-                st.metric("Positions", f"{mvo_m['positions']} / {results['num_assets']}")
-
-            fig_weights = create_weights_bar_chart(opt['weights_nonzero'])
-            st.plotly_chart(fig_weights, use_container_width=True, config={'displayModeBar': False})
-            fig_frontier = create_efficient_frontier_plotly(opt)
-            st.plotly_chart(fig_frontier, use_container_width=True, config={'displayModeBar': False})
-
-    elif has_hrp:
-        # HRP Only
-        rebal_freq = hrp.get('rebalance_freq', 'Never')
-        rebal_label = f" — {rebal_freq} Rebalancing" if rebal_freq != 'Never' else " — Buy & Hold"
-        with st.expander(f"Portfolio Allocation (HRP{rebal_label})", expanded=True):
-            hrp_m = _compute_model_metrics(hrp, 'HRP')
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                delta_ret = hrp_m['return'] - results['portfolio_return']
-                st.metric("HRP Return", f"{hrp_m['return']:.2f}%",
-                          delta=f"{delta_ret:+.2f}% vs EW")
-            with col2:
-                delta_sharpe = hrp_m['sharpe'] - results['portfolio_sharpe']
-                st.metric("HRP Sharpe", f"{hrp_m['sharpe']:.2f}",
-                          delta=f"{delta_sharpe:+.2f} vs EW")
-            with col3:
-                st.metric("HRP Max DD", f"{hrp_m['max_dd']:.2f}%")
-            with col4:
-                st.metric("Positions", f"{hrp_m['positions']} / {results['num_assets']}")
-
-            fig_weights = create_weights_bar_chart(hrp['weights_nonzero'])
-            st.plotly_chart(fig_weights, use_container_width=True, config={'displayModeBar': False})
-            if hrp.get('returns_df') is not None:
+            if key == 'hrp' and hrp is not None and hrp.get('returns_df') is not None:
                 fig_dendro = create_dendrogram_chart(hrp['returns_df'])
                 st.plotly_chart(fig_dendro, use_container_width=True, config={'displayModeBar': False})
 
@@ -2175,9 +2266,9 @@ with st.sidebar:
 
         opt_models = st.multiselect(
             "Allocation Models",
-            ["Mean-Variance (Markowitz)", "Hierarchical Risk Parity (HRP)"],
+            ["Mean-Variance (Markowitz)", "Hierarchical Risk Parity (HRP)", "Mean-CVaR (Tail Risk)"],
             default=["Mean-Variance (Markowitz)", "Hierarchical Risk Parity (HRP)"],
-            help="Select one or both models. Both enables side-by-side comparison.",
+            help="Select models for portfolio optimization. Multiple enables side-by-side comparison.",
             key="opt_models"
         )
 
@@ -2710,6 +2801,12 @@ if selected_page == "Main Terminal":
                                 hrp_optimization = compute_hrp_optimization(per_asset_returns, close_df, rebalance_freq=rebalance_freq)
                             except Exception as hrp_err:
                                 st.warning(f"HRP optimization skipped: {hrp_err}")
+                        cvar_optimization = None
+                        if 'Mean-CVaR (Tail Risk)' in opt_models:
+                            try:
+                                cvar_optimization = compute_cvar_optimization(per_asset_returns, rebalance_freq=rebalance_freq)
+                            except Exception as cvar_err:
+                                st.warning(f"CVaR optimization skipped: {cvar_err}")
 
                         # Display results
                         results = {
@@ -2728,6 +2825,7 @@ if selected_page == "Main Terminal":
                             'failed_tickers': failed,
                             'optimization': optimization,
                             'hrp_optimization': hrp_optimization,
+                            'cvar_optimization': cvar_optimization,
                             'macro_filtered': use_macro_filter and macro_regime is not None,
                             'macro_regime': macro_regime,
                             'skipped_entries': signals.get('skipped_entries'),
@@ -3675,6 +3773,12 @@ elif selected_page == "Grid Search":
                                 grid_hrp_optimization = compute_hrp_optimization(opt_per_asset_returns, close_df, rebalance_freq='Monthly')
                             except Exception:
                                 grid_hrp_optimization = None
+                        grid_cvar_optimization = None
+                        if 'Mean-CVaR (Tail Risk)' in opt_models:
+                            try:
+                                grid_cvar_optimization = compute_cvar_optimization(opt_per_asset_returns, rebalance_freq='Monthly')
+                            except Exception:
+                                grid_cvar_optimization = None
 
                         opt_multi_results = {
                             'portfolio_return': opt_portfolio_return,
@@ -3692,6 +3796,7 @@ elif selected_page == "Grid Search":
                             'failed_tickers': grid_failed_tickers,
                             'optimization': grid_optimization,
                             'hrp_optimization': grid_hrp_optimization,
+                            'cvar_optimization': grid_cvar_optimization,
                             'macro_filtered': use_macro_filter and grid_macro_regime is not None,
                             'macro_regime': grid_macro_regime,
                             'skipped_entries': opt_signals.get('skipped_entries'),
@@ -3792,6 +3897,17 @@ elif selected_page == "Grid Search":
                                         name='OOS Gross (0% fees)',
                                         line=dict(color='#b0bec5', width=1.5, dash='dot'),
                                     ))
+                                # Rolling MVO (no lookahead) overlay
+                                oos_stitched = wf_results.get('oos_stitched_returns')
+                                if oos_stitched is not None:
+                                    oos_rolling_mvo_eq = compute_rolling_mvo_equity(oos_stitched)
+                                    if oos_rolling_mvo_eq is not None:
+                                        fig_wf.add_trace(go.Scatter(
+                                            x=oos_rolling_mvo_eq.index,
+                                            y=oos_rolling_mvo_eq.values,
+                                            name='OOS Rolling MVO (No Lookahead)',
+                                            line=dict(color='gold', width=2),
+                                        ))
                                 fig_wf.update_layout(
                                     template='plotly_dark',
                                     paper_bgcolor='#121212',

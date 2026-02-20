@@ -334,6 +334,16 @@ class TrendAtrStrategy:
 
         close_vals = close.values
 
+        # Proxy equity curve: approximate account growth from cumulative returns
+        # Starting at $10,000, compounding daily on close-to-close returns.
+        prev_close = np.roll(close_vals, 1)
+        prev_close[0] = close_vals[0]
+        daily_returns = (close_vals - prev_close) / np.maximum(prev_close, 1e-8)
+        daily_returns[0] = 0.0
+        proxy_equity = 10000.0 * np.cumprod(1.0 + daily_returns)
+        # Risk 2% of proxy equity each trade (dynamic version of flat $200)
+        risk_budget = proxy_equity * 0.02
+
         for i in range(N):
             sma_val = flat_sma[i]
             mult_val = flat_mult[i]
@@ -355,7 +365,7 @@ class TrendAtrStrategy:
             exits[:, i] = st_bear & ~st_bear_prev
 
             stop_dist = atr * mult_val
-            sizes[:, i] = np.where(stop_dist > 0, 200.0 / stop_dist, 0.0)
+            sizes[:, i] = np.where(stop_dist > 0, risk_budget / stop_dist, 0.0)
 
         zeros = np.zeros_like(entries)
         return {
