@@ -828,9 +828,9 @@ def compute_markowitz_optimization(per_asset_returns, close_df, risk_free_rate=0
     """
     from pypfopt import EfficientFrontier, risk_models, expected_returns
 
-    # Use close prices for expected returns & covariance (standard for Markowitz)
-    mu = expected_returns.mean_historical_return(close_df)
-    S = risk_models.sample_cov(close_df)
+    # Use strategy returns for expected returns & covariance (not raw price)
+    mu = per_asset_returns.mean() * 252
+    S = risk_models.sample_cov(per_asset_returns, returns_data=True)
 
     ef = EfficientFrontier(mu, S)
     ef.max_sharpe(risk_free_rate=risk_free_rate)
@@ -906,7 +906,7 @@ def compute_hrp_optimization(per_asset_returns, close_df, rebalance_freq='Monthl
     """
     from pypfopt import HRPOpt
 
-    returns_df = close_df.pct_change().dropna()
+    returns_df = per_asset_returns.copy()
     hrp = HRPOpt(returns_df)
     hrp.optimize()
     weights = hrp.clean_weights()
@@ -2486,24 +2486,20 @@ if selected_page == "Main Terminal":
                                 low_df.columns = low_df.columns.get_level_values(0)
                                 volume_df.columns = volume_df.columns.get_level_values(0)
 
-                            # Forward-fill NaN gaps from different trading calendars
+                            # 1. Volume must be exactly 0 on closed days/weekends
+                            volume_df = volume_df.fillna(0)
+                            # 2. Forward-fill Close prices to bridge market holidays
                             close_df = close_df.ffill()
-                            high_df = high_df.ffill()
-                            low_df = low_df.ffill()
-                            volume_df = volume_df.ffill().fillna(0)
-
-                            # Drop any remaining leading NaN rows (before first valid data)
-                            close_df = close_df.dropna()
-                            high_df = high_df.loc[close_df.index]
-                            low_df = low_df.loc[close_df.index]
-                            volume_df = volume_df.loc[close_df.index]
-
-                            # Drop tickers that are entirely NaN (no data at all)
-                            valid_cols = close_df.columns[close_df.notna().any()]
-                            close_df = close_df[valid_cols]
-                            high_df = high_df[valid_cols]
-                            low_df = low_df[valid_cols]
-                            volume_df = volume_df[valid_cols]
+                            # 3. On closed days, High and Low must equal Close (Zero Volatility)
+                            high_df = high_df.fillna(close_df)
+                            low_df = low_df.fillna(close_df)
+                            # 4. Drop entirely empty tickers, then align the timeline to the youngest asset
+                            close_df = close_df.dropna(axis=1, how='all')
+                            close_df = close_df.dropna()  # Drops leading NaNs, starting backtest when all assets exist
+                            valid_cols = close_df.columns
+                            high_df = high_df.loc[close_df.index, valid_cols]
+                            low_df = low_df.loc[close_df.index, valid_cols]
+                            volume_df = volume_df.loc[close_df.index, valid_cols]
 
                             # Identify valid tickers (those that returned data)
                             valid_tickers = close_df.columns.tolist()
@@ -3162,21 +3158,20 @@ elif selected_page == "Grid Search":
                     low_df.columns = low_df.columns.get_level_values(0)
                     volume_df.columns = volume_df.columns.get_level_values(0)
 
-                # Forward-fill and clean
+                # 1. Volume must be exactly 0 on closed days/weekends
+                volume_df = volume_df.fillna(0)
+                # 2. Forward-fill Close prices to bridge market holidays
                 close_df = close_df.ffill()
-                high_df = high_df.ffill()
-                low_df = low_df.ffill()
-                volume_df = volume_df.ffill().fillna(0)
-                close_df = close_df.dropna()
-                high_df = high_df.loc[close_df.index]
-                low_df = low_df.loc[close_df.index]
-                volume_df = volume_df.loc[close_df.index]
-
-                valid_cols = close_df.columns[close_df.notna().any()]
-                close_df = close_df[valid_cols]
-                high_df = high_df[valid_cols]
-                low_df = low_df[valid_cols]
-                volume_df = volume_df[valid_cols]
+                # 3. On closed days, High and Low must equal Close (Zero Volatility)
+                high_df = high_df.fillna(close_df)
+                low_df = low_df.fillna(close_df)
+                # 4. Drop entirely empty tickers, then align the timeline to the youngest asset
+                close_df = close_df.dropna(axis=1, how='all')
+                close_df = close_df.dropna()  # Drops leading NaNs, starting backtest when all assets exist
+                valid_cols = close_df.columns
+                high_df = high_df.loc[close_df.index, valid_cols]
+                low_df = low_df.loc[close_df.index, valid_cols]
+                volume_df = volume_df.loc[close_df.index, valid_cols]
                 grid_valid_tickers = close_df.columns.tolist()
 
                 dropped = set(selected_tickers_multi) - set(grid_valid_tickers)

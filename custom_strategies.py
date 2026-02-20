@@ -273,3 +273,113 @@ This is a custom strategy. Analyze the setup and decide BUY or HOLD.
     def get_position_size(self, price: float, account_value: float) -> int:
         dollar_amount = min(config.POSITION_SIZE, account_value * 0.95)
         return max(1, int(dollar_amount / price))
+
+
+class TrendAtrStrategy:
+    """
+    Smart Trend + ATR Trailing Stop
+    Enters when price is above the Macro SMA while the Supertrend (ATR) is bullish.
+    Exits immediately when the Supertrend turns bearish.
+    """
+    @staticmethod
+    def get_optimizable_params():
+        return {
+            "SMA_LENGTH": {
+                "name": "Trend SMA",
+                "type": "int", "min": 20, "max": 200, "step": 10, "default": 200,
+                "optimize_min": 50, "optimize_max": 200, "optimize_step": 50,
+                "category": "signal",
+                "description": "Macro trend filter (Price must be above this SMA)"
+            },
+            "ATR_MULTIPLIER": {
+                "name": "ATR Multiplier",
+                "type": "float", "min": 1.0, "max": 5.0, "step": 0.5, "default": 3.0,
+                "optimize_min": 2.0, "optimize_max": 4.0, "optimize_step": 1.0,
+                "category": "signal",
+                "description": "Distance of the trailing stop in ATR units"
+            }
+        }
+
+    @staticmethod
+    def generate_vectorized_signals(close, high, low, volume, param_ranges):
+        import numpy as np
+        import pandas_ta_classic as ta
+
+        T = len(close)
+        sma_range = param_ranges.get("SMA_LENGTH", np.array([200]))
+        mult_range = param_ranges.get("ATR_MULTIPLIER", np.array([3.0]))
+
+        grid_sma, grid_mult = np.meshgrid(sma_range, mult_range)
+        flat_sma = grid_sma.flatten()
+        flat_mult = grid_mult.flatten()
+        N = len(flat_sma)
+
+        entries = np.zeros((T, N), dtype=bool)
+        exits = np.zeros((T, N), dtype=bool)
+
+        smas = {}
+        for sma_len in np.unique(flat_sma):
+            smas[sma_len] = ta.sma(close, length=int(sma_len)).values
+
+        sts = {}
+        for mult in np.unique(flat_mult):
+            st_df = ta.supertrend(high, low, close, length=14, multiplier=float(mult))
+            if st_df is not None and not st_df.empty:
+                sts[mult] = st_df.iloc[:, 1].values  # SUPERTd direction column
+            else:
+                sts[mult] = np.ones(T)
+
+        close_vals = close.values
+
+        for i in range(N):
+            sma_val = flat_sma[i]
+            mult_val = flat_mult[i]
+
+            current_sma = smas[sma_val]
+            current_st_dir = sts[mult_val]
+
+            above_sma = close_vals > current_sma
+            st_bull = (current_st_dir == 1)
+
+            signal = above_sma & st_bull
+            signal_prev = np.roll(signal, 1)
+            signal_prev[0] = False
+            entries[:, i] = signal & ~signal_prev
+
+            st_bear = (current_st_dir == -1)
+            st_bear_prev = np.roll(st_bear, 1)
+            st_bear_prev[0] = False
+            exits[:, i] = st_bear & ~st_bear_prev
+
+        zeros = np.zeros_like(entries)
+        return {
+            'long_entries': entries,
+            'long_exits': exits,
+            'short_entries': zeros,
+            'short_exits': zeros,
+            'param_columns': {
+                'Trend SMA': flat_sma,
+                'ATR Multiplier': flat_mult
+            }
+        }
+
+    def __init__(self, **kwargs):
+        import logging
+        self.logger = logging.getLogger(__name__)
+        self.sma_length = int(kwargs.get('SMA_LENGTH', 200))
+        self.atr_multiplier = float(kwargs.get('ATR_MULTIPLIER', 3.0))
+        self.logger.info("TrendAtrStrategy initialized")
+
+    def calculate_indicators(self, df):
+        import pandas_ta_classic as ta
+        df = df.copy()
+        df['SMA'] = ta.sma(df['Close'], length=self.sma_length)
+        st_df = ta.supertrend(df['High'], df['Low'], df['Close'], length=14, multiplier=self.atr_multiplier)
+        df['ST_DIR'] = st_df.iloc[:, 1] if (st_df is not None and not st_df.empty) else 1
+        return df
+
+    def check_hard_filters(self, row):
+        return (row['Close'] > row['SMA']) and (row['ST_DIR'] == 1)
+
+    def generate_prompt(self, row, lookback_rows=None):
+        return f"Price is ${row['Close']:.2f}. SMA is ${row['SMA']:.2f}. Supertrend is {'Bullish' if row['ST_DIR']==1 else 'Bearish'}. Evaluate trend continuation."
