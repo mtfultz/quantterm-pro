@@ -5564,37 +5564,40 @@ elif selected_page == "Options Lab":
                     option_price = option_row['lastPrice']
                     st.metric("Option Price", f"${option_price:.2f}")
 
-            with calc_col2:
-                contracts = st.number_input(
-                    "Number of Contracts",
-                    min_value=1,
-                    max_value=1000,
-                    value=10,
-                    help="Each contract = 100 shares"
+            if not available_strikes:
+                with calc_col2:
+                    st.info("No options available for this type.")
+            else:
+                with calc_col2:
+                    contracts = st.number_input(
+                        "Number of Contracts",
+                        min_value=1,
+                        max_value=1000,
+                        value=10,
+                        help="Each contract = 100 shares"
+                    )
+
+                    cost_basis = option_price * 100 * contracts
+                    st.metric("Total Cost", f"${cost_basis:,.2f}")
+
+                # Profit slider
+                om = st.session_state.options_manager
+                current_price = om.current_price
+
+                price_range_pct = 50  # ±50% from current price
+                min_price = current_price * (1 - price_range_pct / 100)
+                max_price = current_price * (1 + price_range_pct / 100)
+
+                new_stock_price = st.slider(
+                    f"If {options_ticker} moves to...",
+                    min_value=float(min_price),
+                    max_value=float(max_price),
+                    value=float(current_price),
+                    step=0.50,
+                    format="$%.2f"
                 )
 
-                cost_basis = option_price * 100 * contracts
-                st.metric("Total Cost", f"${cost_basis:,.2f}")
-
-            # Profit slider
-            om = st.session_state.options_manager
-            current_price = om.current_price
-
-            price_range_pct = 50  # ±50% from current price
-            min_price = current_price * (1 - price_range_pct / 100)
-            max_price = current_price * (1 + price_range_pct / 100)
-
-            new_stock_price = st.slider(
-                f"If {options_ticker} moves to...",
-                min_value=float(min_price),
-                max_value=float(max_price),
-                value=float(current_price),
-                step=0.50,
-                format="$%.2f"
-            )
-
-            # Calculate profit
-            if available_strikes:
+                # Calculate profit
                 profit_calc = om.calculate_profit(
                     strike=selected_strike,
                     option_price=option_price,
@@ -5604,7 +5607,7 @@ elif selected_page == "Options Lab":
                 )
 
                 # Display results
-                st.markdown("#### 💰 Profit/Loss at New Price")
+                st.markdown("#### Profit/Loss at New Price")
 
                 metric_col1, metric_col2, metric_col3 = st.columns(3)
 
@@ -5632,7 +5635,7 @@ elif selected_page == "Options Lab":
                     )
 
                 # Visual profit chart
-                st.markdown("####Profit Curve")
+                st.markdown("#### Profit Curve")
 
                 # Generate profit curve data
                 price_points = np.linspace(min_price, max_price, 50)
